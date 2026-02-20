@@ -63,31 +63,29 @@ DNA_NAMES: dict[int, str] = {
 SESSION_NAMES: dict[int, str] = {0: "Asian", 1: "London", 2: "New York"}
 KILL_ZONE_NAMES: dict[int, str] = {0: "None", 1: "London Open", 2: "NY Open", 3: "London Close"}
 
-COLOR_BG = "#1a1a2e"
-COLOR_PANEL = "#16213e"
-COLOR_ACCENT = "#0f3460"
-COLOR_TEXT = "#e0e0e0"
-COLOR_BUY = "#00ff88"
-COLOR_SELL = "#ff4444"
+COLOR_BG = "#000000"
+COLOR_PANEL = "#0a0a0a"
+COLOR_ACCENT = "#1a1a1a"
+COLOR_TEXT = "#00ff00"
+COLOR_BUY = "#00ff00"
+COLOR_SELL = "#ff0040"
 COLOR_WARN = "#ffaa00"
-COLOR_INFO = "#00bcd4"
+COLOR_INFO = "#00ff00"
 COLOR_GOLD = "#ffd700"
 
 GLOBAL_QSS = f"""
-QMainWindow {{ background-color: {COLOR_BG}; }}
-QWidget {{ background-color: {COLOR_BG}; color: {COLOR_TEXT}; }}
-QDockWidget {{ color: {COLOR_TEXT}; font-weight: bold; }}
-QDockWidget::title {{ background: {COLOR_ACCENT}; padding: 6px; }}
-QLabel {{ color: {COLOR_TEXT}; }}
-QTableWidget {{ background-color: {COLOR_PANEL}; color: {COLOR_TEXT};
-                gridline-color: {COLOR_ACCENT}; }}
+QMainWindow {{ background-color: #000000; }}
+QWidget {{ background-color: #000000; color: #00ff00; }}
+QDockWidget {{ color: #00ff00; font-weight: bold; }}
+QDockWidget::title {{ background: #1a1a1a; padding: 6px; }}
+QLabel {{ color: #00ff00; }}
+QTableWidget {{ background-color: #0a0a0a; color: #00ff00; gridline-color: #1a1a1a; }}
 QTableWidget::item {{ padding: 4px; }}
-QHeaderView::section {{ background-color: {COLOR_ACCENT}; color: {COLOR_TEXT};
-                        padding: 4px; border: none; }}
-QProgressBar {{ background-color: {COLOR_ACCENT}; border: 1px solid {COLOR_BG};
-                border-radius: 4px; text-align: center; color: {COLOR_TEXT}; }}
-QProgressBar::chunk {{ background-color: {COLOR_INFO}; border-radius: 4px; }}
-QStatusBar {{ background-color: {COLOR_ACCENT}; color: {COLOR_TEXT}; }}
+QHeaderView::section {{ background-color: #1a1a1a; color: #00ff00; padding: 4px; border: none; font-weight: bold; }}
+QProgressBar {{ background-color: #1a1a1a; border: 1px solid #000000;
+                border-radius: 4px; text-align: center; color: #00ff00; }}
+QProgressBar::chunk {{ background-color: #00ff00; border-radius: 4px; }}
+QStatusBar {{ background-color: #1a1a1a; color: #00ff00; }}
 """
 
 # ---------------------------------------------------------------------------
@@ -141,10 +139,10 @@ class MarketPanel(QWidget):
         grid.setSpacing(6)
         grid.setContentsMargins(8, 8, 8, 8)
 
-        self._price_lbl = _styled_label("—", font_size=18, bold=True, color=COLOR_INFO,
+        self._price_lbl = _styled_label("—", font_size=20, bold=True, color=COLOR_TEXT,
                                         align=Qt.AlignLeft)
-        self._session_lbl = _styled_label("—")
-        self._killzone_lbl = _styled_label("—")
+        self._session_lbl = _styled_label("—", bold=True)
+        self._killzone_lbl = _styled_label("—", bold=True)
         self._vol_lbl = _styled_label("—")
         self._h4_lbl = _styled_label("—")
         self._h1_lbl = _styled_label("—")
@@ -292,7 +290,7 @@ class CountdownSignalPanel(QWidget):
         # Countdown section
         self._countdown_bar = _progress_bar(0, 900, COLOR_INFO)
         self._countdown_bar.setFixedHeight(20)
-        self._countdown_lbl = _styled_label("15:00", font_size=16, bold=True,
+        self._countdown_lbl = _styled_label("15:00", font_size=20, bold=True,
                                             color=COLOR_INFO, align=Qt.AlignCenter)
 
         layout.addWidget(_styled_label("⏳ Next M15 Candle", bold=True))
@@ -306,11 +304,12 @@ class CountdownSignalPanel(QWidget):
         layout.addWidget(line)
 
         # Signal section
-        self._dir_lbl = _styled_label("⚪ NO TRADE", font_size=20, bold=True,
+        self._dir_lbl = _styled_label("⚪ NO TRADE", font_size=28, bold=True,
                                        color="#888888", align=Qt.AlignCenter)
         self._conf_bar = _progress_bar(0, 100, "#888888")
-        self._conf_lbl = _styled_label("Confidence: 0.0%", align=Qt.AlignCenter)
-        self._tier_lbl = _styled_label("", align=Qt.AlignCenter)
+        self._conf_bar.setFixedHeight(24)
+        self._conf_lbl = _styled_label("Confidence: 0.0%", font_size=14, align=Qt.AlignCenter)
+        self._tier_lbl = _styled_label("", font_size=14, align=Qt.AlignCenter)
         self._entry_lbl = _styled_label("")
         self._sl_lbl = _styled_label("")
         self._tp_lbl = _styled_label("")
@@ -357,7 +356,7 @@ class CountdownSignalPanel(QWidget):
             dir_icon = "🟢 BUY" if direction == "BUY" else "🔴 SELL"
             self._dir_lbl.setText(dir_icon)
             self._dir_lbl.setStyleSheet(
-                f"color: {dir_color}; font-size: 20pt; font-weight: bold;"
+                f"color: {dir_color}; font-size: 28pt; font-weight: bold;"
             )
             self._conf_bar.setStyleSheet(
                 f"QProgressBar::chunk {{ background-color: {dir_color}; border-radius: 4px; }}"
@@ -393,7 +392,7 @@ class CountdownSignalPanel(QWidget):
 
         else:
             self._dir_lbl.setText("⚪ NO TRADE")
-            self._dir_lbl.setStyleSheet("color: #888888; font-size: 20pt; font-weight: bold;")
+            self._dir_lbl.setStyleSheet("color: #888888; font-size: 28pt; font-weight: bold;")
             self._conf_bar.setStyleSheet(
                 "QProgressBar::chunk { background-color: #888888; border-radius: 4px; }"
             )
@@ -546,7 +545,7 @@ class PerformancePanel(QWidget):
         self._plot: "pg.PlotWidget | None"
         self._curve: "pg.PlotDataItem | None"
         if _HAS_PYQTGRAPH:
-            pg.setConfigOption("background", COLOR_BG)
+            pg.setConfigOption("background", "#000000")
             pg.setConfigOption("foreground", COLOR_TEXT)
             self._plot = pg.PlotWidget(title="Equity Curve (Cumulative Pips)")
             self._plot.setLabel("left", "Pips")
@@ -612,7 +611,7 @@ class ChartPanel(QWidget):
 
         self._plot: "pg.PlotWidget | None"
         if _HAS_PYQTGRAPH:
-            pg.setConfigOption("background", COLOR_BG)
+            pg.setConfigOption("background", "#000000")
             pg.setConfigOption("foreground", COLOR_TEXT)
             self._plot = pg.PlotWidget(title="XAUUSD M15 — Candlestick")
             self._plot.setLabel("left", "Price")
@@ -639,41 +638,75 @@ class ChartPanel(QWidget):
             return
 
         df = historical_df.tail(100).copy().reset_index(drop=True)
-        if df.empty or "m15_close" not in df.columns:
+        if df.empty:
             return
+
+        # Auto-detect OHLC column names (m15_* prefix or plain names)
+        col_map: dict[str, str] = {}
+        for base in ("open", "high", "low", "close"):
+            if f"m15_{base}" in df.columns:
+                col_map[base] = f"m15_{base}"
+            elif base in df.columns:
+                col_map[base] = base
 
         self._plot.clear()
         self._signal_lines = []
 
-        # Draw close-price line as fallback candlestick representation
-        close_vals = df["m15_close"].astype(float).tolist()
-        x = list(range(len(close_vals)))
-        self._plot.plot(x, close_vals, pen=pg.mkPen(COLOR_INFO, width=1.5))
+        if len(col_map) == 4:
+            # Draw proper filled candlestick bodies + wicks
+            bull_x, bull_bottoms, bull_heights = [], [], []
+            bear_x, bear_bottoms, bear_heights = [], [], []
 
-        # Attempt to draw OHLC bars using pyqtgraph CandlestickItem equivalent
-        if all(c in df.columns for c in ("m15_open", "m15_high", "m15_low", "m15_close")):
             for i, row in df.iterrows():
-                o = float(row["m15_open"])
-                h = float(row["m15_high"])
-                lo = float(row["m15_low"])
-                c = float(row["m15_close"])
-                color = COLOR_BUY if c >= o else COLOR_SELL
-                # Wick
+                o = float(row[col_map["open"]])
+                h = float(row[col_map["high"]])
+                lo = float(row[col_map["low"]])
+                c = float(row[col_map["close"]])
+                is_bull = c >= o
+                color = COLOR_BUY if is_bull else COLOR_SELL
+
+                # Wick line (low to high)
                 self._plot.plot(
                     [i, i], [lo, h],
                     pen=pg.mkPen(color, width=1)
                 )
-                # Body
-                self._plot.plot(
-                    [i - 0.3, i + 0.3, i + 0.3, i - 0.3, i - 0.3],
-                    [o, o, c, c, o],
-                    pen=pg.mkPen(color, width=1),
-                    fillLevel=None,
-                )
+
+                body_bottom = min(o, c)
+                # For doji candles (open == close), use a tiny minimum height so they remain visible
+                body_height = abs(c - o) or (h - lo) * 0.001
+
+                if is_bull:
+                    bull_x.append(i)
+                    bull_bottoms.append(body_bottom)
+                    bull_heights.append(body_height)
+                else:
+                    bear_x.append(i)
+                    bear_bottoms.append(body_bottom)
+                    bear_heights.append(body_height)
+
+            # Filled bull bodies (lime green)
+            if bull_x:
+                self._plot.addItem(pg.BarGraphItem(
+                    x=bull_x, height=bull_heights, y0=bull_bottoms,
+                    width=0.6,
+                    brush=pg.mkBrush(COLOR_BUY),
+                    pen=pg.mkPen(COLOR_BUY, width=0),
+                ))
+
+            # Filled bear bodies (bright red)
+            if bear_x:
+                self._plot.addItem(pg.BarGraphItem(
+                    x=bear_x, height=bear_heights, y0=bear_bottoms,
+                    width=0.6,
+                    brush=pg.mkBrush(COLOR_SELL),
+                    pen=pg.mkPen(COLOR_SELL, width=0),
+                ))
+
+            # Grid: very dim
+            self._plot.showGrid(x=True, y=True, alpha=0.05)
 
         # Draw signal lines
         if signal is not None:
-            n = len(df)
             entry = _safe_float(signal.get("entry_price", 0.0))
             sl = _safe_float(signal.get("stop_loss", 0.0))
             tp = _safe_float(signal.get("take_profit", 0.0))
@@ -735,8 +768,11 @@ class GoldwolfGUI(QMainWindow):
 
         # --- Status bar ---
         self._status_mt5 = QLabel("🔴 MT5 Disconnected")
+        self._status_mt5.setStyleSheet(f"color: {COLOR_SELL}; font-weight: bold;")
         self._status_cycle = QLabel("Cycle: 0 | Last update: —")
+        self._status_cycle.setStyleSheet(f"color: {COLOR_TEXT};")
         self._status_brand = QLabel("🐺 GOLDWOLF by 130xer")
+        self._status_brand.setStyleSheet(f"color: {COLOR_TEXT}; font-weight: bold;")
 
         sb = self.statusBar()
         sb.addPermanentWidget(self._status_mt5)
