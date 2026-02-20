@@ -32,5 +32,10 @@ env/
 # Output directory (generated at runtime)
 output/
 
+# Model files
+*.json
+*.pkl
+*.model
+
 # Pytest cache
 .pytest_cache/
