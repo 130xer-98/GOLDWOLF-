@@ -1,0 +1,36 @@
+# GOLDWOLF — .gitignore
+
+# Environment / secrets
+.env
+
+# Data files (stored locally, not committed)
+*.csv
+*.parquet
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
+
+# Output directory (generated at runtime)
+output/
+
+# Pytest cache
+.pytest_cache/
