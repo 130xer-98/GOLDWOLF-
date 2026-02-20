@@ -22,12 +22,14 @@ OUTPUT_PATH: str = os.getenv("OUTPUT_PATH", "output/goldwolf_phase1.parquet")
 # ---------------------------------------------------------------------------
 # CSV parsing
 # ---------------------------------------------------------------------------
-# Date and time columns in source CSVs
+# Date and time columns in source CSVs (M1 format)
 CSV_DATE_COL: str = "date"
 CSV_TIME_COL: str = "time"
+# Timestamp column in M15 format CSVs (single combined datetime column)
+CSV_TIMESTAMP_COL: str = "timestamp"
 # Combined datetime column name after parsing
 CSV_DATETIME_COL: str = "datetime"
-# Format used in the raw CSV files
+# Format used in the raw M1 CSV files
 CSV_DATE_FORMAT: str = "%Y.%m.%d %H:%M"
 
 # OHLCV column names

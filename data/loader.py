@@ -13,6 +13,7 @@ import pandas as pd
 from config.settings import (
     CSV_DATE_COL,
     CSV_TIME_COL,
+    CSV_TIMESTAMP_COL,
     CSV_DATETIME_COL,
     CSV_DATE_FORMAT,
     CSV_OPEN_COL,
@@ -64,17 +65,16 @@ def load_csv(filepath: str, timeframe_label: str = "data") -> pd.DataFrame:
     logger.info("[%s] Loading: %s", timeframe_label, filepath)
 
     with Timer(f"read_csv {timeframe_label}") as t:
-        # Read with explicit dtypes to reduce memory usage
+        # Read with explicit dtypes for OHLCV columns (common to both formats).
+        # Date/time/timestamp columns are left as strings or auto-detected;
+        # volume is handled separately since M15 files omit it.
         df = pd.read_csv(
             filepath,
             dtype={
-                CSV_DATE_COL: str,
-                CSV_TIME_COL: str,
                 CSV_OPEN_COL: np.float32,
                 CSV_HIGH_COL: np.float32,
                 CSV_LOW_COL: np.float32,
                 CSV_CLOSE_COL: np.float32,
-                CSV_VOLUME_COL: np.float32,
             },
             engine="c",
         )
@@ -89,13 +89,31 @@ def load_csv(filepath: str, timeframe_label: str = "data") -> pd.DataFrame:
     rows_raw = len(df)
 
     # ------------------------------------------------------------------
-    # 1. Parse datetime
+    # 1. Parse datetime — detect M1 (date+time) vs M15 (timestamp) format
     # ------------------------------------------------------------------
-    df[CSV_DATETIME_COL] = pd.to_datetime(
-        df[CSV_DATE_COL].str.strip() + " " + df[CSV_TIME_COL].str.strip(),
-        format=CSV_DATE_FORMAT,
-    )
-    df.drop(columns=[CSV_DATE_COL, CSV_TIME_COL], inplace=True)
+    if CSV_DATE_COL in df.columns and CSV_TIME_COL in df.columns:
+        # M1 format: separate date and time columns
+        df[CSV_DATETIME_COL] = pd.to_datetime(
+            df[CSV_DATE_COL].str.strip() + " " + df[CSV_TIME_COL].str.strip(),
+            format=CSV_DATE_FORMAT,
+        )
+        df.drop(columns=[CSV_DATE_COL, CSV_TIME_COL], inplace=True)
+    elif CSV_TIMESTAMP_COL in df.columns:
+        # M15 format: single combined timestamp column
+        df[CSV_DATETIME_COL] = pd.to_datetime(df[CSV_TIMESTAMP_COL])
+        df.drop(columns=[CSV_TIMESTAMP_COL], inplace=True)
+    else:
+        raise ValueError(
+            f"[{timeframe_label}] Unrecognized CSV format: expected columns "
+            f"'{CSV_DATE_COL}'+'{CSV_TIME_COL}' (M1) or '{CSV_TIMESTAMP_COL}' (M15)."
+        )
+
+    # Ensure volume column exists (M15 files omit it)
+    if CSV_VOLUME_COL not in df.columns:
+        df[CSV_VOLUME_COL] = np.zeros(len(df), dtype=np.float32)
+    else:
+        df[CSV_VOLUME_COL] = df[CSV_VOLUME_COL].astype(np.float32)
+
     df.set_index(CSV_DATETIME_COL, inplace=True)
 
     # ------------------------------------------------------------------
