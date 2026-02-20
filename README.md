@@ -1,0 +1,2 @@
+# GOLDWOLF-
+XAUUSD Only
