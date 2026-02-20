@@ -286,6 +286,50 @@ class SignalGenerator:
         )
         return signal
 
+    def predict_raw(self, df_row: pd.Series) -> dict[str, Any]:
+        """
+        Return raw model prediction without applying any filters.
+
+        Useful for the dashboard to show confidence and direction even when
+        the signal is filtered out by cooldown, daily limit, or min confidence.
+
+        Parameters
+        ----------
+        df_row : pd.Series — one row from the feature DataFrame.
+
+        Returns
+        -------
+        dict with keys: direction, confidence, probabilities.
+        """
+        self._load_model()
+        import xgboost as xgb
+
+        if self._feature_names:
+            feat_values = np.array(
+                [float(df_row.get(f, 0)) for f in self._feature_names],
+                dtype=np.float32,
+            )
+            dmat = xgb.DMatrix(
+                feat_values.reshape(1, -1),
+                feature_names=self._feature_names,
+            )
+        else:
+            feat_values = np.array(
+                [float(v) for v in df_row.values if isinstance(v, (int, float, np.number))],
+                dtype=np.float32,
+            )
+            dmat = xgb.DMatrix(feat_values.reshape(1, -1))
+
+        probs = self._model.predict(dmat)[0]
+        pred_class = int(np.argmax(probs))
+        confidence = float(probs[pred_class]) * 100
+        direction = _CLASS_TO_DIR.get(pred_class, "NO_TRADE")
+        return {
+            "direction": direction,
+            "confidence": confidence,
+            "probabilities": probs.tolist(),
+        }
+
     def process_dataframe(
         self,
         df: pd.DataFrame,
