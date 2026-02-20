@@ -160,8 +160,11 @@ def run_live(
 
     from signals.generator import SignalGenerator
     from live.telegram_bot import send_signal, send_alert
+    from live.dashboard import GoldwolfDashboard
+    from rich.live import Live
 
     gen = SignalGenerator()
+    dashboard = GoldwolfDashboard()
 
     # --- Connect to MT5 ---
     connected = False
@@ -189,62 +192,86 @@ def run_live(
 
     # --- Main loop ---
     cycle = 0
-    while _RUNNING:
-        cycle += 1
-        logger.info("--- Cycle %d ---", cycle)
+    with Live(dashboard.render(), refresh_per_second=1, screen=True) as live:
+        while _RUNNING:
+            cycle += 1
 
-        try:
-            # Fetch latest M15 bar
-            if connected:
-                from live.data_bridge import get_live_m15_bar
-                live_bar = get_live_m15_bar(symbol)
-            else:
-                live_bar = None
-
-            if live_bar is None:
-                if historical_df is not None and len(historical_df) > 0:
-                    # Offline: use the last bar of historical data for demo
-                    live_bar = historical_df.tail(1)
+            try:
+                # Fetch latest M15 bar
+                if connected:
+                    from live.data_bridge import get_live_m15_bar
+                    live_bar = get_live_m15_bar(symbol)
                 else:
-                    logger.warning("No data available — skipping cycle.")
+                    live_bar = None
+
+                if live_bar is None:
+                    if historical_df is not None and len(historical_df) > 0:
+                        # Offline: use the last bar of historical data for demo
+                        live_bar = historical_df.tail(1)
+                    else:
+                        logger.warning("No data available — skipping cycle.")
+                        time.sleep(60)
+                        continue
+
+                # Compute features
+                if historical_df is not None:
+                    feature_row = _build_feature_row(live_bar, historical_df)
+                else:
+                    feature_row = live_bar.iloc[-1] if len(live_bar) > 0 else None
+
+                if feature_row is None:
+                    logger.warning("Feature computation returned None — skipping.")
                     time.sleep(60)
                     continue
 
-            # Compute features
-            if historical_df is not None:
-                feature_row = _build_feature_row(live_bar, historical_df)
-            else:
-                feature_row = live_bar.iloc[-1] if len(live_bar) > 0 else None
+                # Update market panel
+                dashboard.update_market(feature_row)
+                live.update(dashboard.render())
 
-            if feature_row is None:
-                logger.warning("Feature computation returned None — skipping.")
-                time.sleep(60)
-                continue
+                # Get raw prediction for dashboard (before filters)
+                try:
+                    raw = gen.predict_raw(feature_row)
+                    raw_confidence = raw["confidence"]
+                    raw_direction = raw["direction"]
+                except Exception as raw_exc:
+                    logger.debug("predict_raw failed: %s", raw_exc)
+                    raw_confidence = 0.0
+                    raw_direction = "NO_TRADE"
 
-            # Generate signal
-            sig = gen.generate_signal(feature_row, bar_index=cycle)
+                # Generate filtered signal
+                sig = gen.generate_signal(feature_row, bar_index=cycle)
 
-            if sig is not None:
-                logger.info("Signal generated: %s", sig)
-                _log_signal_to_csv(sig)
-                send_signal(sig)
-            else:
-                logger.debug("No signal this cycle.")
+                # Update prediction panel
+                dashboard.update_prediction(sig, raw_confidence, raw_direction)
+                live.update(dashboard.render())
 
-        except Exception as exc:
-            logger.error("Error in live loop cycle %d: %s", cycle, exc, exc_info=True)
-            try:
-                send_alert(f"Error in live loop: {exc}")
-            except Exception:
-                pass
+                if sig is not None:
+                    logger.info("Signal generated: %s", sig)
+                    _log_signal_to_csv(sig)
+                    send_signal(sig)
+                    dashboard.add_signal(sig)
+                else:
+                    logger.debug("No signal this cycle.")
 
-        if not _RUNNING:
-            break
+            except Exception as exc:
+                logger.error("Error in live loop cycle %d: %s", cycle, exc, exc_info=True)
+                try:
+                    send_alert(f"Error in live loop: {exc}")
+                except Exception:
+                    pass
 
-        # Sleep until next M15 close
-        wait_secs = _seconds_until_next_m15()
-        logger.info("Sleeping %.0f seconds until next M15 close …", wait_secs)
-        time.sleep(wait_secs)
+            if not _RUNNING:
+                break
+
+            # Sleep until next M15 close, updating the countdown every second
+            deadline = time.monotonic() + _seconds_until_next_m15()
+            while _RUNNING:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                dashboard.update_countdown(remaining)
+                live.update(dashboard.render())
+                time.sleep(min(1.0, remaining))
 
     # --- Cleanup ---
     if connected:
