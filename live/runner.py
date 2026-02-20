@@ -261,6 +261,18 @@ def _make_trading_worker_class() -> type:
                         self._sleep_interruptible(60)
                         continue
 
+                    # CRITICAL FIX: Append new live bar to historical context
+                    # so next cycle sees updated data and produces different predictions
+                    if historical_df is not None and live_bar is not None:
+                        try:
+                            last_ts = historical_df.index[-1] if isinstance(historical_df.index, pd.DatetimeIndex) else None
+                            live_ts = live_bar.index[-1] if isinstance(live_bar.index, pd.DatetimeIndex) else None
+                            if last_ts is None or live_ts is None or live_ts > last_ts:
+                                historical_df = pd.concat([historical_df, live_bar]).drop_duplicates().tail(10000)
+                                logger.debug("Appended live bar to historical context — now %d rows", len(historical_df))
+                        except Exception as append_exc:
+                            logger.debug("Could not append live bar: %s", append_exc)
+
                     self.market_updated.emit(feature_row)
 
                     # Emit chart: prefer MT5 real-time candles, fall back to historical_df
@@ -273,6 +285,7 @@ def _make_trading_worker_class() -> type:
                         raw = gen.predict_raw(feature_row)
                         raw_confidence = float(raw["confidence"])
                         raw_direction = str(raw["direction"])
+                        logger.info("Raw prediction: %s %.1f%% | probs: %s", raw_direction, raw_confidence, raw["probabilities"])
                     except Exception as raw_exc:
                         logger.debug("predict_raw failed: %s", raw_exc)
                         raw_confidence = 0.0
