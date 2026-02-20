@@ -201,7 +201,22 @@ def _make_trading_worker_class() -> type:
                 except Exception as exc:
                     logger.warning("fill_gap failed: %s", exc)
 
+            # Fetch last 100 M15 candles from MT5 for the chart
+            chart_df: pd.DataFrame | None = None
+            if connected:
+                try:
+                    import MetaTrader5 as mt5  # noqa: PLC0415
+                    rates = mt5.copy_rates_from_pos(
+                        self._symbol, mt5.TIMEFRAME_M15, 0, 100
+                    )
+                    if rates is not None and len(rates) > 0:
+                        chart_df = pd.DataFrame(rates)
+                        logger.info("Fetched %d M15 candles from MT5", len(chart_df))
+                except Exception as exc:
+                    logger.warning("Failed to fetch M15 candles from MT5: %s", exc)
+
             cycle = 0
+            last_signal: "dict | None" = None
             while self._running:
                 cycle += 1
 
@@ -223,6 +238,18 @@ def _make_trading_worker_class() -> type:
                             self._sleep_interruptible(60)
                             continue
 
+                    # Refresh MT5 chart candles each cycle
+                    if connected:
+                        try:
+                            import MetaTrader5 as mt5  # noqa: PLC0415
+                            rates = mt5.copy_rates_from_pos(
+                                self._symbol, mt5.TIMEFRAME_M15, 0, 100
+                            )
+                            if rates is not None and len(rates) > 0:
+                                chart_df = pd.DataFrame(rates)
+                        except Exception:
+                            pass
+
                     # Compute features
                     if historical_df is not None:
                         feature_row = _build_feature_row(live_bar, historical_df)
@@ -236,8 +263,10 @@ def _make_trading_worker_class() -> type:
 
                     self.market_updated.emit(feature_row)
 
-                    if historical_df is not None:
-                        self.chart_ready.emit(historical_df, None)
+                    # Emit chart: prefer MT5 real-time candles, fall back to historical_df
+                    emit_df = chart_df if chart_df is not None else historical_df
+                    if emit_df is not None:
+                        self.chart_ready.emit(emit_df, None)
 
                     # Raw prediction (before filters)
                     try:
@@ -251,6 +280,7 @@ def _make_trading_worker_class() -> type:
 
                     # Filtered signal
                     sig = gen.generate_signal(feature_row, bar_index=cycle)
+                    last_signal = sig
                     self.prediction_ready.emit(sig, raw_confidence, raw_direction)
 
                     if sig is not None:
@@ -261,8 +291,9 @@ def _make_trading_worker_class() -> type:
                         except Exception:
                             pass
                         self.signal_fired.emit(sig)
-                        if historical_df is not None:
-                            self.chart_ready.emit(historical_df, sig)
+                        emit_df = chart_df if chart_df is not None else historical_df
+                        if emit_df is not None:
+                            self.chart_ready.emit(emit_df, sig)
 
                     self.cycle_done.emit(cycle)
 
@@ -274,12 +305,35 @@ def _make_trading_worker_class() -> type:
                     except Exception:
                         pass
 
-                # Wait until next M15 close (interruptible 1-second ticks)
+                # Wait until next M15 close — 1-second ticks with live candle updates
                 deadline = time.monotonic() + _seconds_until_next_m15()
+                # Track last-candle overrides separately to avoid a full DataFrame copy per tick
+                tick_high: float | None = None
+                tick_low: float | None = None
                 while self._running:
                     remaining = deadline - time.monotonic()
                     if remaining <= 0:
                         break
+                    # Fetch latest tick and update the last (forming) candle in real-time
+                    if connected and chart_df is not None:
+                        try:
+                            import MetaTrader5 as mt5  # noqa: PLC0415
+                            tick = mt5.symbol_info_tick(self._symbol)
+                            if tick is not None:
+                                current_price = tick.bid
+                                last_idx = len(chart_df) - 1
+                                orig_high = float(chart_df.loc[last_idx, "high"])
+                                orig_low = float(chart_df.loc[last_idx, "low"])
+                                tick_high = max(tick_high or orig_high, current_price)
+                                tick_low = min(tick_low or orig_low, current_price)
+                                # Only copy once we have updated tick values to emit
+                                chart_df_copy = chart_df.copy()
+                                chart_df_copy.loc[last_idx, "close"] = current_price
+                                chart_df_copy.loc[last_idx, "high"] = tick_high
+                                chart_df_copy.loc[last_idx, "low"] = tick_low
+                                self.chart_ready.emit(chart_df_copy, last_signal)
+                        except Exception:
+                            pass
                     time.sleep(min(1.0, remaining))
 
             # Cleanup
