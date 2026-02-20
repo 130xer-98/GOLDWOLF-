@@ -116,6 +116,12 @@ def _build_feature_row(
         # For live, use the last N bars of history + the new bar
         context_tail = historical_context.tail(500).copy()
 
+        # Drop existing feature columns to avoid overlap on recomputation
+        l2_cols = [c for c in context_tail.columns if c.startswith("l2_")]
+        l3_cols = [c for c in context_tail.columns if c.startswith("l3_")]
+        l4_cols = [c for c in context_tail.columns if c.startswith("l4_")]
+        context_tail = context_tail.drop(columns=l2_cols + l3_cols + l4_cols, errors="ignore")
+
         # Compute features on the full context window
         out = compute_layer1_features(context_tail) if "m1_candles" in context_tail.columns else context_tail
         out = compute_layer2_features(out)

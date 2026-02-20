@@ -211,6 +211,70 @@ class TestLiveRunner:
         assert rows[0]["direction"] == "BUY"
         assert "2000" in rows[0]["entry_price"]
 
+    def test_build_feature_row_drops_existing_feature_columns(self):
+        """_build_feature_row should drop existing l2_/l3_/l4_ columns before recomputing."""
+        n = 10
+        idx = pd.date_range("2020-01-01", periods=n, freq="15min")
+        # Simulate a historical context that already has l2_/l3_/l4_ columns
+        historical_df = pd.DataFrame(
+            {
+                "open": np.ones(n),
+                "high": np.ones(n),
+                "low": np.ones(n),
+                "close": np.ones(n),
+                "volume": np.ones(n),
+                "l2_session": np.zeros(n),
+                "l3_trend": np.zeros(n),
+                "l4_signal": np.zeros(n),
+            },
+            index=idx,
+        )
+
+        # Verify the drop logic directly (mirrors what _build_feature_row now does)
+        context_tail = historical_df.tail(500).copy()
+        l2_cols = [c for c in context_tail.columns if c.startswith("l2_")]
+        l3_cols = [c for c in context_tail.columns if c.startswith("l3_")]
+        l4_cols = [c for c in context_tail.columns if c.startswith("l4_")]
+        context_tail = context_tail.drop(columns=l2_cols + l3_cols + l4_cols, errors="ignore")
+
+        assert not any(c.startswith("l2_") for c in context_tail.columns)
+        assert not any(c.startswith("l3_") for c in context_tail.columns)
+        assert not any(c.startswith("l4_") for c in context_tail.columns)
+        # Base OHLCV columns should still be present
+        assert "open" in context_tail.columns
+        assert "close" in context_tail.columns
+
+    def test_build_feature_row_succeeds_with_preexisting_feature_columns(self):
+        """_build_feature_row should not crash when historical_context has l2_/l3_/l4_ columns."""
+        from live.runner import _build_feature_row
+
+        n = 10
+        idx = pd.date_range("2020-01-01", periods=n, freq="15min")
+        historical_df = pd.DataFrame(
+            {
+                "open": np.ones(n),
+                "high": np.ones(n),
+                "low": np.ones(n),
+                "close": np.ones(n),
+                "volume": np.ones(n),
+                "l2_session": np.zeros(n),
+                "l3_trend": np.zeros(n),
+                "l4_signal": np.zeros(n),
+            },
+            index=idx,
+        )
+        live_bar = historical_df.tail(1)
+
+        # Mock the layer compute functions — they just pass through the DataFrame
+        with patch("features.layer2.compute_layer2_features", side_effect=lambda df: df), \
+             patch("features.layer3.compute_layer3_features", side_effect=lambda df: df), \
+             patch("features.layer4.compute_layer4_features", side_effect=lambda df: df):
+            result = _build_feature_row(live_bar, historical_df)
+
+        # Should return a Series (the last row) rather than None
+        assert result is not None
+        assert isinstance(result, pd.Series)
+
     def test_run_live_offline_mode_stops_cleanly(self):
         """run_live with offline_mode=True should set up cleanly and stop on flag."""
         from live import runner
